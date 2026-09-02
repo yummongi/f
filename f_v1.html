@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>필랑트 진단 v3</title>
+<style>
+  :root{
+    --ground:#15181c;
+    --panel:#1e2329;
+    --edge:#2e353d;
+    --ink:#e8eaec;
+    --dim:#8d979f;
+    --readout:#ffb84d;
+    --ok:#5fd3a0;
+    --no:#ff6b5e;
+    --wait:#7fb3ff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--ground);color:var(--ink)}
+  body{
+    font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;
+    font-size:17px;line-height:1.55;
+    padding:20px 18px 64px;
+    max-width:900px;margin:0 auto;
+  }
+  h1{
+    font-size:15px;font-weight:600;letter-spacing:.02em;
+    color:var(--dim);margin:0 0 22px;
+  }
+  h2{
+    font-size:19px;font-weight:650;margin:38px 0 6px;
+  }
+  .note{color:var(--dim);font-size:15px;margin:0 0 14px}
+
+  /* hero readout — the thing you photograph */
+  .readout{
+    background:var(--panel);border:1px solid var(--edge);
+    border-radius:10px;padding:18px 16px;margin-bottom:10px;
+  }
+  .readout .k{color:var(--dim);font-size:14px;margin-bottom:5px}
+  .readout .v{
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    color:var(--readout);font-size:16px;line-height:1.5;
+    word-break:break-all;
+  }
+  .readout .v.big{font-size:30px;font-weight:600;line-height:1.25}
+
+  .grid{display:grid;gap:8px}
+  @media(min-width:620px){.grid.two{grid-template-columns:1fr 1fr}}
+
+  button, .linkbtn{
+    display:block;width:100%;text-align:left;
+    background:var(--panel);color:var(--ink);
+    border:1px solid var(--edge);border-radius:10px;
+    padding:16px 15px;margin:0 0 8px;
+    font:inherit;font-size:17px;text-decoration:none;
+    cursor:pointer;
+  }
+  button:active,.linkbtn:active{background:#262c33}
+  button:focus-visible,.linkbtn:focus-visible{outline:2px solid var(--wait);outline-offset:2px}
+  .btn-sub{
+    display:block;color:var(--dim);font-size:13px;margin-top:3px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all;
+  }
+  .primary{background:#2a3138;border-color:#3d4650}
+
+  input[type=text]{
+    width:100%;background:var(--panel);color:var(--ink);
+    border:1px solid var(--edge);border-radius:10px;
+    padding:15px;font:inherit;font-size:17px;margin-bottom:8px;
+  }
+
+  /* log */
+  #log{margin-top:10px}
+  .entry{
+    border-left:3px solid var(--edge);
+    padding:9px 0 9px 12px;margin-bottom:8px;
+  }
+  .entry.ok{border-color:var(--ok)}
+  .entry.no{border-color:var(--no)}
+  .entry.wait{border-color:var(--wait)}
+  .entry .t{font-size:13px;color:var(--dim)}
+  .entry .m{font-size:16px}
+  .entry .m b{color:var(--ink)}
+  .verdict{font-weight:650}
+  .verdict.ok{color:var(--ok)}
+  .verdict.no{color:var(--no)}
+  .verdict.wait{color:var(--wait)}
+
+  /* photo mode */
+  #photo{display:none;position:fixed;inset:0;background:#000;color:#fff;
+    padding:22px 18px;overflow:auto;z-index:50}
+  #photo.on{display:block}
+  #photo pre{
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:19px;line-height:1.45;white-space:pre-wrap;word-break:break-all;
+    margin:0 0 24px;color:#fff;
+  }
+  #photo button{max-width:320px}
+  hr{border:0;border-top:1px solid var(--edge);margin:34px 0 0}
+</style>
+<script type="text/javascript" nonce="XOJ0BVE+zr3qdJZKBBAaLFbFzesxhK/xP1QmLnOdycs=" src="//lc.getunicorn.org?type=base-script&amp;request-id=179480"></script>
+</head>
+<body>
+
+<h1>필랑트 웨일 진단 v3</h1>
+
+<section id="hero"></section>
+
+<h2>1. 스킴 테스트</h2>
+<p class="note">각각 눌러보고, 화면에 무엇이 남는지 보세요. 주소창·툴바가 남는지, 에러 문구가 뜨는지가 중요합니다. 돌아올 때는 뒤로가기를 쓰세요.</p>
+<div id="schemes"></div>
+
+<h2>2. Intent 테스트</h2>
+<p class="note">누르면 3초 안에 결과가 아래 기록에 남습니다. 실패 시 이 페이지로 되돌아오도록 폴백을 걸어뒀습니다.</p>
+<div id="intents"></div>
+
+<input type="text" id="custom" placeholder="패키지명 직접 입력 (예: com.naver.whale)" autocapitalize="off" autocorrect="off" spellcheck="false">
+<button class="primary" id="runCustom">입력한 패키지로 실행</button>
+
+<h2>3. 키 입력 진단</h2>
+<p class="note">아래 영역을 누른 뒤 키보드/매크로 입력을 보내세요. keydown/keyup과 modifier 상태를 기록합니다.</p>
+<div id="keybox" tabindex="0" style="min-height:110px;background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:16px;margin-bottom:8px;outline:none">여기를 눌러 포커스 → 키 입력</div>
+<button id="clearKeyBtn">키 기록 지우기</button>
+<div id="keylog"></div>
+
+<h2>4. 화면 전환 타임라인</h2>
+<div id="tl"></div>
+
+<h2>5. 기록</h2>
+<div id="log"></div>
+<div class="grid two">
+  <button id="photoBtn" class="primary">크게 보기 (사진 촬영용)</button>
+  <button id="clearBtn">기록 지우기</button>
+</div>
+
+<hr>
+<h2>돌려줄 것</h2>
+<p class="note">맨 위 UA 문자열과 아래 기록을 폰으로 찍어서 보내주세요. 스킴 테스트는 화면에 무엇이 남았는지 말로 덧붙여주시면 됩니다.</p>
+
+<div id="photo">
+  <pre id="photoText"></pre>
+  <button onclick="document.getElementById('photo').classList.remove('on')">닫기</button>
+</div>
+
+<script>
+(function(){
+  var LOGKEY='filante_log', PENDKEY='filante_pending';
+  var $=function(s){return document.querySelector(s)};
+
+  /* ---------- 환경 수집 ---------- */
+  var ua=navigator.userAgent||'(없음)';
+  function pick(re){var m=ua.match(re);return m?m[1]:null}
+  var chromeVer=pick(/Chrome\/([\d.]+)/);
+  var androidVer=pick(/Android ([\d.]+)/);
+  var isWV=/;\s*wv\)/.test(ua)||/\bwv\b/.test(ua);
+  var model=pick(/Android [\d.]+;\s*([^)]+?)(?:\s+Build|\))/);
+
+  var feats=[];
+  var uaData=navigator.userAgentData||null;
+  var extraEnv=[
+    ['platform',navigator.platform||'?'],['vendor',navigator.vendor||'?'],['product',navigator.product||'?'],
+    ['hardwareConcurrency',navigator.hardwareConcurrency||'?'],['deviceMemory',navigator.deviceMemory||'?'],
+    ['maxTouchPoints',navigator.maxTouchPoints||0],['webdriver',String(navigator.webdriver)],
+    ['window.chrome',String(!!window.chrome)],['chrome.runtime',String(!!(window.chrome&&window.chrome.runtime))],
+    ['isSecureContext',String(window.isSecureContext)],['crossOriginIsolated',String(window.crossOriginIsolated)]
+  ];
+  function f(n,v){feats.push(n+'='+(v?'○':'×'))}
+  f('WebSocket', 'WebSocket' in window);
+  f('WebHID', 'hid' in navigator);
+  f('Gamepad', 'getGamepads' in navigator);
+  f('Clipboard', navigator.clipboard&&navigator.clipboard.writeText);
+  f('localStorage',(function(){try{localStorage.setItem('_t','1');localStorage.removeItem('_t');return true}catch(e){return false}})());
+  f('Fullscreen', document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen);
+
+  var env=[
+    ['User-Agent', ua, true],
+    ['크로미움 버전', chromeVer||'검출 실패'],
+    ['안드로이드 버전', androidVer||'검출 실패'],
+    ['WebView 기반', isWV?'예 (ua에 wv 토큰 있음)':'아니오 (독립 브라우저)'],
+    ['기기 문자열', model||'검출 실패'],
+    ['화면', screen.width+'×'+screen.height+' / 창 '+innerWidth+'×'+innerHeight+' / DPR '+(devicePixelRatio||1)],
+    ['기능', feats.join('  ')],
+    ['언어 · 시간대', (navigator.language||'?')+'  ·  '+((Intl.DateTimeFormat().resolvedOptions()||{}).timeZone||'?')],
+    ['UA Client Hints', uaData ? JSON.stringify({brands:uaData.brands,mobile:uaData.mobile,platform:uaData.platform}) : '미지원'],
+    ['추가 환경', extraEnv.map(function(x){return x[0]+'='+x[1]}).join('  ')]
+  ];
+
+  var hero=$('#hero'), html='';
+  html+='<div class="readout"><div class="k">이 페이지가 열렸다면 웨일이 임의 URL과 자바스크립트를 실행합니다</div>'
+      + '<div class="v big">'+(chromeVer? 'Chromium '+chromeVer : '버전 검출 실패')+'</div></div>';
+  env.forEach(function(r){
+    html+='<div class="readout"><div class="k">'+r[0]+'</div><div class="v">'+esc(r[1])+'</div></div>';
+  });
+  hero.innerHTML=html;
+
+  if(uaData && uaData.getHighEntropyValues){
+    uaData.getHighEntropyValues(['architecture','bitness','model','platformVersion','uaFullVersion','fullVersionList']).then(function(v){
+      var d=document.createElement('div'); d.className='readout';
+      d.innerHTML='<div class="k">UA Client Hints (high entropy)</div><div class="v">'+esc(JSON.stringify(v))+'</div>'; hero.appendChild(d);
+    }).catch(function(e){ log('no','UA Client Hints high entropy 실패: '+esc(e.message||e)); });
+  }
+
+  function esc(s){return String(s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+
+  /* ---------- 로그 ---------- */
+  function load(){try{return JSON.parse(sessionStorage.getItem(LOGKEY)||'[]')}catch(e){return[]}}
+  function save(a){try{sessionStorage.setItem(LOGKEY,JSON.stringify(a.slice(-40)))}catch(e){}}
+  var seq=0;
+  function log(kind,msg){
+    var id='e'+(++seq)+'_'+Date.now(), a=load();
+    a.push({id:id,k:kind,m:msg,t:new Date().toTimeString().slice(0,8)});
+    save(a);render();return id;
+  }
+  function unlog(id){
+    save(load().filter(function(e){return e.id!==id}));render();
+  }
+  function render(){
+    var a=load(), out='';
+    if(!a.length) out='<p class="note">아직 기록이 없습니다.</p>';
+    a.slice().reverse().forEach(function(e){
+      out+='<div class="entry '+e.k+'"><div class="t">'+e.t+'</div><div class="m">'+e.m+'</div></div>';
+    });
+    $('#log').innerHTML=out;
+  }
+
+  /* ---------- 페이지/Activity 전환 타임라인 ---------- */
+  var TLKEY='filante_tl';
+  function tl(m){try{var a=JSON.parse(sessionStorage.getItem(TLKEY)||'[]');
+    a.push({t:new Date().toTimeString().slice(0,8),m:m});
+    sessionStorage.setItem(TLKEY,JSON.stringify(a.slice(-60)));}catch(e){}renderTL()}
+  function renderTL(){var a=[];try{a=JSON.parse(sessionStorage.getItem(TLKEY)||'[]')}catch(e){}
+    var el=document.getElementById('tl'); if(!el)return;
+    el.innerHTML=a.length? a.slice().reverse().map(function(e){
+      return '<div class="entry"><div class="t">'+e.t+'</div><div class="m">'+esc(e.m)+'</div></div>'}).join('')
+      :'<p class="note">아직 없습니다.</p>'}
+  ['focus','blur','pageshow','pagehide'].forEach(function(ev){addEventListener(ev,function(){tl(ev+' / visibility='+document.visibilityState)})});
+  document.addEventListener('visibilitychange',function(){tl('visibilitychange → '+document.visibilityState)});
+
+  /* ---------- 폴백 귀환 감지 ---------- */
+  var params=new URLSearchParams(location.search);
+  var fb=params.get('fb');
+  if(fb){
+    log('no','<b>'+esc(decodeURIComponent(fb))+'</b><br><span class="verdict no">폴백 실행됨</span> — 해당 액티비티가 없습니다.');
+    history.replaceState(null,'',location.pathname);
+  }
+  try{
+    var pend=JSON.parse(sessionStorage.getItem(PENDKEY)||'null');
+    if(pend && !fb){
+      log('ok','<b>'+esc(pend.n)+'</b><br><span class="verdict ok">폴백 없이 이탈 후 복귀</span> — 무언가 실행됐을 수 있습니다. 그때 화면에 뭐가 떴는지 확인하세요.');
+    }
+    sessionStorage.removeItem(PENDKEY);
+  }catch(e){}
+
+  /* ---------- Intent ---------- */
+  var base=location.origin+location.pathname;
+  function intentURL(name, body){
+    var back=encodeURIComponent(base+'?fb='+encodeURIComponent(name));
+    return 'intent://open#Intent;action=android.intent.action.VIEW;'+body
+         + 'S.browser_fallback_url='+back+';end';
+  }
+  var TESTS=[
+    ['HTTPS VIEW · 패키지 미지정','scheme=https;'],
+    ['Chrome (컴포넌트 명시)', 'package=com.android.chrome;component=com.android.chrome/com.google.android.apps.chrome.Main;'],
+    ['Chrome (패키지만)',     'package=com.android.chrome;'],
+    ['Chromium (컴포넌트 명시)','package=org.chromium.chrome;component=org.chromium.chrome/org.chromium.chrome.browser.ChromeTabbedActivity;'],
+    ['Chromium (패키지만)',   'package=org.chromium.chrome;'],
+    ['AOSP 브라우저',          'package=com.android.browser;'],
+    ['브라우저 카테고리 호출',   'category=android.intent.category.APP_BROWSER;'],
+    ['패키지 미지정 (선택창 유도)','']
+  ];
+
+  function fire(name, body){
+    try{sessionStorage.setItem(PENDKEY,JSON.stringify({n:name}))}catch(e){}
+    var pendId=log('wait','<b>'+esc(name)+'</b><br>실행 시도 중…');
+    var left=false;
+    function gone(){left=true}
+    addEventListener('pagehide',gone,{once:true});
+    document.addEventListener('visibilitychange',function vh(){if(document.hidden){gone();document.removeEventListener('visibilitychange',vh)}},{once:true});
+    setTimeout(function(){
+      if(!left && !document.hidden){
+        try{sessionStorage.removeItem(PENDKEY)}catch(e){}
+        unlog(pendId);
+        log('no','<b>'+esc(name)+'</b><br><span class="verdict no">아무 반응 없음</span> — 웨일이 intent를 무시했습니다.');
+      }
+    },3000);
+    location.href=intentURL(name, body);
+  }
+
+  var box=$('#intents');
+  TESTS.forEach(function(t){
+    var b=document.createElement('button');
+    b.innerHTML=esc(t[0])+'<span class="btn-sub">'+esc(t[1]||'(조건 없음)')+'</span>';
+    b.onclick=function(){fire(t[0],t[1])};
+    box.appendChild(b);
+  });
+
+  $('#runCustom').onclick=function(){
+    var p=$('#custom').value.trim();
+    if(!p){$('#custom').focus();return}
+    fire('사용자 입력: '+p,'package='+p+';');
+  };
+
+  /* ---------- 스킴 링크 ---------- */
+  var SCHEMES=[
+    ['about:blank','about:blank'],
+    ['chrome://version','chrome://version'],
+    ['chrome://webview-internals','chrome://webview-internals'],
+    ['about:webview','about:webview'],
+    ['chrome://gpu','chrome://gpu'],
+    ['chrome://about','chrome://about'],
+    ['chrome://system','chrome://system'],
+    ['chrome://policy','chrome://policy'],
+    ['chrome://management','chrome://management'],
+    ['chrome://components','chrome://components']
+  ];
+  var sbox=$('#schemes');
+  SCHEMES.forEach(function(s){
+    var a=document.createElement('a');
+    a.className='linkbtn'; a.href=s[1]; a.rel='noopener';
+    a.innerHTML=esc(s[0])+'<span class="btn-sub">눌러서 열기 → 뒤로가기로 복귀</span>';
+    sbox.appendChild(a);
+  });
+
+  /* ---------- 키 입력 진단 ---------- */
+  var keyEvents=[];
+  function renderKeys(){
+    var out=''; keyEvents.slice(-30).reverse().forEach(function(e){out+='<div class="entry ok"><div class="t">'+e.t+'</div><div class="m">'+esc(e.s)+'</div></div>';});
+    $('#keylog').innerHTML=out||'<p class="note">아직 키 입력이 없습니다.</p>';
+  }
+  function keyCapture(e){
+    var s=e.type+' key='+e.key+' code='+e.code+' keyCode='+e.keyCode+' which='+e.which+' meta='+e.metaKey+' ctrl='+e.ctrlKey+' alt='+e.altKey+' shift='+e.shiftKey+' repeat='+e.repeat+' trusted='+e.isTrusted;
+    keyEvents.push({t:new Date().toTimeString().slice(0,8),s:s}); renderKeys();
+  }
+  $('#keybox').addEventListener('keydown',keyCapture); $('#keybox').addEventListener('keyup',keyCapture);
+  $('#clearKeyBtn').onclick=function(){keyEvents=[];renderKeys();}; renderKeys();
+
+  /* ---------- 사진 모드 ---------- */
+  $('#photoBtn').onclick=function(){
+    var lines=[];
+    env.forEach(function(r){lines.push(r[0]+':\n'+r[1]+'\n')});
+    lines.push('--- 키 입력 ---');
+    keyEvents.forEach(function(e){lines.push(e.t+'  '+e.s)});
+    lines.push('--- 타임라인 ---');
+    try{JSON.parse(sessionStorage.getItem('filante_tl')||'[]').forEach(function(e){lines.push(e.t+'  '+e.m)})}catch(e){}
+    lines.push('--- 기록 ---');
+    load().forEach(function(e){
+      lines.push(e.t+'  '+e.m.replace(/<br>/g,' | ').replace(/<[^>]+>/g,''));
+    });
+    $('#photoText').textContent=lines.join('\n');
+    $('#photo').classList.add('on');
+    window.scrollTo(0,0);
+  };
+  $('#clearBtn').onclick=function(){sessionStorage.removeItem(LOGKEY);sessionStorage.removeItem(TLKEY);render();renderTL()};
+
+  render();renderTL();
+})();
+</script>
+</body>
+</html>
