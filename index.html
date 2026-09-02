@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>필랑트 selector 진단</title>
+<style>
+  :root{
+    --ground:#15181c; --panel:#1e2329; --edge:#2e353d;
+    --ink:#e8eaec; --dim:#8d979f; --readout:#ffb84d;
+    --ok:#5fd3a0; --no:#ff6b5e; --wait:#7fb3ff; --warn:#d39b2a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--ground);color:var(--ink)}
+  body{font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;
+    font-size:17px;line-height:1.55;padding:20px 18px 64px;max-width:900px;margin:0 auto}
+  h1{font-size:15px;font-weight:600;color:var(--dim);margin:0 0 18px}
+  h2{font-size:19px;font-weight:650;margin:34px 0 6px}
+  .note{color:var(--dim);font-size:15px;margin:0 0 14px}
+  .warn{border:1px solid var(--warn);background:#211c11;border-radius:10px;
+    padding:13px 14px;margin:0 0 20px;font-size:16px;line-height:1.5}
+  .readout{background:var(--panel);border:1px solid var(--edge);border-radius:10px;
+    padding:16px;margin-bottom:10px}
+  .readout .k{color:var(--dim);font-size:14px;margin-bottom:5px}
+  .readout .v{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--readout);
+    font-size:15px;line-height:1.5;word-break:break-all}
+  button{display:block;width:100%;text-align:left;background:var(--panel);color:var(--ink);
+    border:1px solid var(--edge);border-radius:10px;padding:16px 15px;margin:0 0 8px;
+    font:inherit;font-size:17px;cursor:pointer}
+  button:active{background:#262c33}
+  button.run{border-color:#4c5562;background:#242a32;font-weight:650}
+  button.run.key{border-color:var(--wait)}
+  .sub{display:block;color:var(--dim);font-size:12px;margin-top:4px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+  .grid button{margin:0}
+  .grid .full{grid-column:1/-1}
+  .entry{border-left:3px solid var(--edge);padding:9px 0 9px 12px;margin-bottom:8px}
+  .entry.ok{border-color:var(--ok)} .entry.no{border-color:var(--no)}
+  .entry.wait{border-color:var(--wait)}
+  .entry .t{font-size:13px;color:var(--dim)}
+  .entry .m{font-size:16px}
+  .entry .m b{color:var(--ink)}
+  #verdict{background:var(--panel);border:1px solid var(--edge);border-radius:10px;
+    padding:16px;margin-top:12px;line-height:1.55}
+  #verdict .head{font-weight:700;margin-bottom:6px}
+  #verdict .head.ok{color:var(--ok)} #verdict .head.no{color:var(--no)}
+  #photo{display:none;position:fixed;inset:0;background:#000;color:#fff;
+    padding:22px 18px;overflow:auto;z-index:50}
+  #photo.on{display:block}
+  #photo pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:19px;
+    line-height:1.45;white-space:pre-wrap;word-break:break-all;margin:0 0 24px;color:#fff}
+  hr{border:0;border-top:1px solid var(--edge);margin:32px 0 0}
+</style>
+</head>
+<body>
+
+<h1>필랑트 selector 진단 — Intent 경로 최종 확인</h1>
+
+<div class="warn"><b>주차 상태에서만 하세요.</b> MAIN/LAUNCHER 계열 Intent는 예상 밖의 화면 전환을 일으킬 수 있습니다. 테스트 후에는 뒤로가기로 이 페이지에 돌아오세요.</div>
+
+<div id="env"></div>
+
+<h2>테스트</h2>
+<p class="note">위에서부터 순서대로. 하나 누르고 → 돌아와서 → 본 것을 기록 → 다음. 순서를 지켜야 비교 판정이 됩니다.</p>
+<div id="tests"></div>
+
+<h2>방금 본 것 기록</h2>
+<p class="note" id="pending">먼저 위에서 테스트를 하나 실행하세요.</p>
+<div class="grid">
+  <button data-r="브라우저 선택창">브라우저 선택창</button>
+  <button data-r="다른 브라우저 실행">다른 브라우저 실행</button>
+  <button data-r="웨일 유지/재실행">웨일 유지 · 재실행</button>
+  <button data-r="홈/런처 화면">홈 · 런처 화면</button>
+  <button data-r="흰 화면">흰 화면</button>
+  <button data-r="오류 문구">오류 문구</button>
+  <button data-r="무반응" class="full">아무 일도 없었음</button>
+</div>
+
+<h2>판정</h2>
+<div id="verdict"></div>
+
+<h2>기록</h2>
+<div id="log"></div>
+<div class="grid">
+  <button id="photoBtn" class="run">크게 보기 (촬영용)</button>
+  <button id="clearBtn">기록 지우기</button>
+</div>
+
+<hr>
+<h2>화면 전환 타임라인</h2>
+<p class="note">참고용. 위 기록과 섞이지 않게 분리해 뒀습니다.</p>
+<div id="tl"></div>
+
+<div id="photo"><pre id="photoText"></pre><button onclick="document.getElementById('photo').classList.remove('on')">닫기</button></div>
+
+<script>
+(function(){
+var LOG='fsel_log', TL='fsel_tl', PEND='fsel_pend', RES='fsel_res';
+var $=function(s){return document.querySelector(s)};
+function esc(s){return String(s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+function jget(k,d){try{return JSON.parse(sessionStorage.getItem(k))||d}catch(e){return d}}
+function jset(k,v){try{sessionStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+var ts=function(){return new Date().toTimeString().slice(0,8)};
+
+/* ---- 환경 ---- */
+var ua=navigator.userAgent||'', m=ua.match(/Chrome\/([\d.]+)/);
+$('#env').innerHTML='<div class="readout"><div class="k">User-Agent</div><div class="v">'+esc(ua)+'</div></div>'
+ +'<div class="readout"><div class="k">크로미움 · 화면</div><div class="v">'+(m?m[1]:'?')
+ +'  ·  '+screen.width+'×'+screen.height+'</div></div>';
+
+/* ---- 로그 ---- */
+function log(kind,msg){var a=jget(LOG,[]);a.push({k:kind,m:msg,t:ts()});jset(LOG,a.slice(-60));render()}
+function render(){
+  var a=jget(LOG,[]),o='';
+  if(!a.length)o='<p class="note">아직 없습니다.</p>';
+  a.slice().reverse().forEach(function(e){o+='<div class="entry '+e.k+'"><div class="t">'+e.t+'</div><div class="m">'+e.m+'</div></div>'});
+  $('#log').innerHTML=o; verdict();
+}
+function tl(m){var a=jget(TL,[]);a.push({m:m,t:ts()});jset(TL,a.slice(-80));renderTL()}
+function renderTL(){
+  var a=jget(TL,[]);
+  $('#tl').innerHTML=a.length?a.slice().reverse().map(function(e){
+    return '<div class="entry"><div class="t">'+e.t+'</div><div class="m">'+esc(e.m)+'</div></div>'}).join(''):'<p class="note">아직 없습니다.</p>';
+}
+
+/* ---- 테스트 정의 ---- */
+var TESTS=[
+ {n:1,name:'대조군 — MAIN + LAUNCHER',
+  uri:'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end',
+  why:'selector 없이 바깥쪽만. 2번과 비교할 기준선.'},
+ {n:2,name:'핵심 — LAUNCHER + SEL → APP_BROWSER', key:true,
+  uri:'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;SEL;action=android.intent.action.MAIN;category=android.intent.category.APP_BROWSER;end',
+  why:'1번과 결과가 같으면 selector 무시, 다르면 selector 작동.'},
+ {n:3,name:'최소 Outer + SEL → APP_BROWSER',
+  uri:'intent:#Intent;action=android.intent.action.MAIN;SEL;action=android.intent.action.MAIN;category=android.intent.category.APP_BROWSER;end',
+  why:'바깥 category를 뺀 변형.'},
+ {n:4,name:'웨일 지정 + SEL → APP_BROWSER', key:true,
+  uri:'intent:#Intent;package=com.naver.whale;action=android.intent.action.MAIN;SEL;action=android.intent.action.MAIN;category=android.intent.category.APP_BROWSER;end',
+  why:'웨일은 호출된다고 확인됨. 웨일이 뜨면 selector 무시, 다른 게 뜨면 selector 작동.'}
+];
+
+function fire(t){
+  jset(PEND,{n:t.n,name:t.name});
+  log('wait','<b>TEST '+t.n+'</b> 실행 — '+esc(t.name));
+  var left=false;
+  addEventListener('pagehide',function(){left=true},{once:true});
+  document.addEventListener('visibilitychange',function v(){if(document.hidden){left=true;document.removeEventListener('visibilitychange',v)}},{once:true});
+  setTimeout(function(){
+    if(!left && !document.hidden) log('no','<b>TEST '+t.n+'</b> 자동감지: 3초간 이탈 없음 — Intent가 무시된 것으로 보입니다.');
+  },3000);
+  location.href=t.uri;
+}
+
+var box=$('#tests');
+TESTS.forEach(function(t){
+  var b=document.createElement('button');
+  b.className='run'+(t.key?' key':'');
+  b.innerHTML='TEST '+t.n+' — '+esc(t.name)+'<span class="sub">'+esc(t.why)+'</span>';
+  b.onclick=function(){fire(t)};
+  box.appendChild(b);
+});
+
+/* ---- 결과 기록 ---- */
+function pendLabel(){
+  var p=jget(PEND,null);
+  $('#pending').innerHTML=p? 'TEST <b>'+p.n+'</b> ('+esc(p.name)+') 의 결과를 아래에서 고르세요.'
+                           : '먼저 위에서 테스트를 하나 실행하세요.';
+}
+document.querySelectorAll('[data-r]').forEach(function(b){
+  b.onclick=function(){
+    var p=jget(PEND,null); if(!p){log('no','먼저 테스트를 실행하세요.');return}
+    var r=b.getAttribute('data-r');
+    var res=jget(RES,{}); res[p.n]=r; jset(RES,res);
+    var good=/선택창|다른 브라우저/.test(r);
+    log(good?'ok':'no','<b>TEST '+p.n+' 결과</b> → '+esc(r));
+  };
+});
+
+/* ---- 판정 ---- */
+function verdict(){
+  var r=jget(RES,{}), el=$('#verdict'), done=Object.keys(r).length;
+  if(!done){el.innerHTML='<div class="head">대기 중</div>TEST 1부터 순서대로 실행하고 결과를 기록하세요. 1번과 2번의 결과 비교가 이 진단의 핵심입니다.';return}
+  var hit=Object.keys(r).filter(function(k){return /선택창|다른 브라우저/.test(r[k])});
+  var out='';
+  if(hit.length){
+    out='<div class="head ok">성공 — 브라우저 selector 경로가 열립니다</div>'
+      +'TEST '+hit.join(', ')+' 에서 외부 브라우저 경로가 노출됐습니다. 이 화면을 촬영해 보내주세요.';
+  } else if(r[1]&&r[2]){
+    if(r[1]===r[2]){
+      out='<div class="head no">selector 무시됨</div>'
+        +'TEST 1과 2의 결과가 <b>'+esc(r[1])+'</b>로 동일합니다. 크로미움이 SEL을 파싱한 뒤 버리고 바깥쪽 Intent만 처리했다는 뜻입니다. 웹 intent로 브라우저 선택창을 부르는 경로는 닫혀 있습니다.';
+    } else {
+      out='<div class="head no">selector가 거부됨</div>'
+        +'TEST 1은 <b>'+esc(r[1])+'</b>, TEST 2는 <b>'+esc(r[2])+'</b>로 달랐습니다. selector가 sanitize 단계에서 걸린 것으로 보입니다. 결과를 그대로 보내주세요.';
+    }
+    if(r[4]) out+='<br><br>TEST 4는 <b>'+esc(r[4])+'</b> — '+(/웨일/.test(r[4])?'selector가 겉 package를 덮지 못했습니다.':'selector가 겉 package를 바꿨을 가능성이 있습니다. 중요한 단서입니다.');
+  } else {
+    out='<div class="head">진행 중</div>'+done+'개 기록됨. 1번과 2번을 모두 기록해야 비교 판정이 나옵니다.';
+  }
+  el.innerHTML=out;
+}
+
+/* ---- 타임라인 (기록과 분리) ---- */
+['pageshow','pagehide','focus','blur'].forEach(function(ev){addEventListener(ev,function(){tl(ev+' / '+document.visibilityState)})});
+document.addEventListener('visibilitychange',function(){tl('visibilitychange → '+document.visibilityState)});
+
+/* ---- 촬영 모드 ---- */
+$('#photoBtn').onclick=function(){
+  var L=['UA: '+ua,''];
+  var r=jget(RES,{});
+  L.push('--- 결과 ---');
+  TESTS.forEach(function(t){L.push('TEST '+t.n+': '+(r[t.n]||'(미기록)'))});
+  L.push('','--- 기록 ---');
+  jget(LOG,[]).forEach(function(e){L.push(e.t+'  '+e.m.replace(/<br>/g,' | ').replace(/<[^>]+>/g,''))});
+  L.push('','--- 타임라인 ---');
+  jget(TL,[]).forEach(function(e){L.push(e.t+'  '+e.m)});
+  $('#photoText').textContent=L.join('\n');
+  $('#photo').classList.add('on'); scrollTo(0,0);
+};
+$('#clearBtn').onclick=function(){
+  [LOG,TL,PEND,RES].forEach(function(k){sessionStorage.removeItem(k)});
+  render();renderTL();pendLabel();
+};
+
+render();renderTL();pendLabel();
+})();
+</script>
+</body>
+</html>
